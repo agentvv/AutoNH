@@ -1,0 +1,8 @@
+# File to specify config files that should always be copied from the old instance to the updated instance
+# Each line should be a file in .minecraft/config to be copied. Examples (both / and \ are accepted):
+# Botania.cfg
+# GTplusplus/GTplusplus.cfg
+NEI/client.cfg
+InGameInfoXML.cfg
+MouseTweaks.cfg
+Waila.cfg

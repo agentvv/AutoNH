@@ -1,0 +1,4 @@
+# File to specify mods that should always be copied from the old instance to the updated instance
+# Each line should be a file in .minecraft/mods to be copied. Examples (both / and \ are accepted):
+# Botania-1.10.12-GTNH.jar
+# 1.7.10/CodeChickenLib-1.2.1.jar
