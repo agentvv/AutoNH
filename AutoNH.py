@@ -15,7 +15,6 @@ import threading
 #Auto determine java version
 #Auto script update
 #Check version online before updating local, to avoid updating from local when theres a newer version online (make sure to still prioritize local downloads vs online for same version)
-#Add actual config file (instead of simply changing globals in .py)
 #Main instance renaming in background after post command
 #First time setup
 #Better way to determine version
@@ -23,26 +22,159 @@ import threading
 #Regex for mods and configs
 #Directories for mods and configs
 
-VERSION_TRACKER_PATH = os.path.join("AutoNH", "versions.txt")               #Path can be absolute or relative to the Prism instance folder (i.e. "\PrismLauncher\instances")
-DOWNLOAD_DIRECTORY = os.path.join("AutoNH", "downloads")                    #Path can be absolute or relative to the Prism instance folder (i.e. "\PrismLauncher\instances")
-CONFIG_OVERWRITE_PATH = os.path.join("AutoNH", "configs.txt")               #Path can be absolute or relative to the Prism instance folder (i.e. "\PrismLauncher\instances")
-MOD_OVERWRITE_PATH = os.path.join("AutoNH", "mods.txt")                     #Path can be absolute or relative to the Prism instance folder (i.e. "\PrismLauncher\instances")
-AUTONH_PATH = os.path.join("AutoNH", "AutoNH.py")                           #Path can be absolute or relative to the Prism instance folder (i.e. "\PrismLauncher\instances")
-DOWNLOAD_LIST_URL = "https://downloads.gtnewhorizons.com/Multi_mc_downloads/?raw"
-PYTHON_EXECUTABLE = "python"
+CONFIG_FILE_PATH = "AutoNH/AutoNH.cfg"
 
-BACKUP_INSTANCE_NEW_NAME = "%Y-%m-%d_%H%M%S GTNH {oldVersion} Backup"       #Available placeholders: {name} = current name of instance, {oldVersion} = string of version being upgraded from (e.g. "2.5.2"), {newVersion} = string of version being upgraded to (e.g. "2.6.0")
-                                                                            #WARNING: {oldVersion} doesn't work if in manual mode (either input or cmd line) or when updating an instance not previously tracked (both will result in a version of "0.0.0")
-#MAIN_INSTANCE_NEW_NAME = "GTNH {newVersion}"                               #Unfortunately you can't rename an instance when in said instance's pre or post commands
-ENABLE_DATETIME_FORMATTING = True                                           #Allows for use of datetime formatting codes (https://docs.python.org/3/library/datetime.html#format-codes) in names
-PRISM_INSTANCE_BACKUPS_GROUP = "GTNH Backups"
+def sanitizeUserPath(path, default = None):
+    if (not path) or (path.strip() == ""):
+        if not default:
+            return default
+        else:
+            path = default
+    stripped = path.strip()
+    replaced = stripped.replace("\\", "/")
+    split = replaced.split("/")
+    return os.path.join(*split)
 
-DOWNLOAD_CHUNK_SIZE = 16 * 1024                                             #16 KiB
-CHECK_ONLINE_AFTER_LOCAL_UPDATE = True
-JAVA_17_21 = True
-COPY_RESOURCE_PACKS_FROM_DOWNLOAD = True
-DELETE_ZIP_AFTER_DOWNLOAD = True
-DELETE_FILES_AFTER_UPDATE = False
+def readConfig():
+    def sanitizeUserStr(str, default = None):
+        if str:
+            return str
+        else:
+            return default
+
+    def sanitizeUserBool(str, default = None):
+        trues = ["true", "t", "yes", "y"]
+        falses = ["false", "f", "no", "n"]
+
+        if not str:
+            return default
+
+        folded = str.casefold()
+        if folded in trues:
+            return True
+        elif folded in falses:
+            return False
+        else:
+            return default
+        
+    def sanitizeUserInt(str, default = None):
+        if str and str.isdecimal():
+            return int(str)
+        else:
+            return default
+
+    configPath = sanitizeUserPath(CONFIG_FILE_PATH, "AutoNH/AutoNH.cfg")
+    values = {}
+    with open(configPath, "r") as file:
+        for line in file.readlines():
+            stripped = line.strip()
+            if stripped == "" or stripped[0] == "#":
+                continue
+
+            split = stripped.split("=")
+            key = split[0].strip()
+            if len(split) > 1:
+                values[key] = "=".join(split[1:]).strip()
+            else:
+                values[key] = None
+
+    # Set globals to the values read from the config file, or a default if there's a issue
+    # This could be made significantly shorter using a list, exec(), and some fancy string formatting, but it would be basically unreadable
+    global BACKUP_INSTANCE_NEW_NAME
+    if "backupInstanceNewName" in values:
+        BACKUP_INSTANCE_NEW_NAME = sanitizeUserStr(values["backupInstanceNewName"], "%Y-%m-%d_%H%M%S GTNH {oldVersion} Backup")
+    else:
+        BACKUP_INSTANCE_NEW_NAME = "%Y-%m-%d_%H%M%S GTNH {oldVersion} Backup"
+
+    global ENABLE_DATETIME_FORMATTING
+    if "enableDatetimeFormatting" in values:
+        ENABLE_DATETIME_FORMATTING = sanitizeUserBool(values["enableDatetimeFormatting"], True)
+    else:
+        ENABLE_DATETIME_FORMATTING = True
+
+    global PRISM_INSTANCE_BACKUPS_GROUP
+    if "backupPrismGroup" in values:
+        PRISM_INSTANCE_BACKUPS_GROUP = sanitizeUserStr(values["backupPrismGroup"], None)
+    else:
+        PRISM_INSTANCE_BACKUPS_GROUP = None
+
+    global CHECK_ONLINE_AFTER_LOCAL_UPDATE
+    if "checkOnlineAfterLocalUpdate" in values:
+        CHECK_ONLINE_AFTER_LOCAL_UPDATE = sanitizeUserBool(values["checkOnlineAfterLocalUpdate"], True)
+    else:
+        CHECK_ONLINE_AFTER_LOCAL_UPDATE = True
+
+    global COPY_RESOURCE_PACKS_FROM_DOWNLOAD
+    if "copyResourcePacksFromDownload" in values:
+        COPY_RESOURCE_PACKS_FROM_DOWNLOAD = sanitizeUserBool(values["copyResourcePacksFromDownload"], True)
+    else:
+        COPY_RESOURCE_PACKS_FROM_DOWNLOAD = True
+
+    global DELETE_ZIP_AFTER_DOWNLOAD
+    if "deleteZipAfterDownload" in values:
+        DELETE_ZIP_AFTER_DOWNLOAD = sanitizeUserBool(values["deleteZipAfterDownload"], True)
+    else:
+        DELETE_ZIP_AFTER_DOWNLOAD = True
+
+    global DELETE_FILES_AFTER_UPDATE
+    if "deleteFilesAfterUpdate" in values:
+        DELETE_FILES_AFTER_UPDATE = sanitizeUserBool(values["deleteFilesAfterUpdate"], False)
+    else:
+        DELETE_FILES_AFTER_UPDATE = False
+
+    global JAVA_17_21
+    if "Java1721" in values:
+        JAVA_17_21 = sanitizeUserBool(values["Java1721"], True)
+    else:
+        JAVA_17_21 = True
+
+    global DOWNLOAD_DIRECTORY
+    if "downloadDirectory" in values:
+        DOWNLOAD_DIRECTORY = sanitizeUserPath(values["downloadDirectory"], "AutoNH/downloads")
+    else:
+        DOWNLOAD_DIRECTORY = sanitizeUserPath("AutoNH/downloads")
+
+    global VERSION_TRACKER_PATH
+    if "versionTrackerPath" in values:
+        VERSION_TRACKER_PATH = sanitizeUserPath(values["versionTrackerPath"], "AutoNH/versions.txt")
+    else:
+        VERSION_TRACKER_PATH = sanitizeUserPath("AutoNH/versions.txt")
+
+    global CONFIG_OVERWRITE_PATH
+    if "configOverwritePath" in values:
+        CONFIG_OVERWRITE_PATH = sanitizeUserPath(values["configOverwritePath"], "AutoNH/configs.txt")
+    else:
+        CONFIG_OVERWRITE_PATH = sanitizeUserPath("AutoNH/configs.txt")
+
+    global MOD_OVERWRITE_PATH
+    if "modOverwritePath" in values:
+        MOD_OVERWRITE_PATH = sanitizeUserPath(values["modOverwritePath"], "AutoNH/mods.txt")
+    else:
+        MOD_OVERWRITE_PATH = sanitizeUserPath("AutoNH/mods.txt")
+
+    global AUTONH_PATH
+    if "AutoNHPath" in values:
+        AUTONH_PATH = sanitizeUserPath(values["AutoNHPath"], "AutoNH/AutoNH.py")
+    else:
+        AUTONH_PATH = sanitizeUserPath("AutoNH/AutoNH.py")
+
+    global PYTHON_EXECUTABLE
+    if "pythonExecutable" in values:
+        PYTHON_EXECUTABLE = sanitizeUserPath(values["pythonExecutable"], "python")
+    else:
+        PYTHON_EXECUTABLE = "python"
+
+    global DOWNLOAD_LIST_URL
+    if "downloadListURL" in values:
+        DOWNLOAD_LIST_URL = values["downloadListURL"]
+    else:
+        DOWNLOAD_LIST_URL = "https://downloads.gtnewhorizons.com/Multi_mc_downloads/?raw"
+
+    global DOWNLOAD_CHUNK_SIZE
+    if "downloadChunkSize" in values:
+        DOWNLOAD_CHUNK_SIZE = sanitizeUserInt(values["downloadChunkSize"], 16384)
+    else:
+        DOWNLOAD_CHUNK_SIZE = 16384
 
 def getInstanceVersion(instanceID):
     if not os.path.exists(VERSION_TRACKER_PATH):
@@ -116,25 +248,26 @@ def createInstanceBackup(instanceDir, oldVersion, newVersion):
         
         file.truncate()
 
-    #Add new instance to "GTNH Backups" group in Prism (and create the group if it doesn't already exist)
-    prismGroupsFilename = os.path.join(os.path.dirname(dstDir), "instgroups.json")
-    if os.path.exists(prismGroupsFilename):
-        with open(prismGroupsFilename, "r+") as file:
-            obj = json.loads(file.read())
+    if PRISM_INSTANCE_BACKUPS_GROUP:
+        #Add new instance to PRISM_INSTANCE_BACKUPS_GROUP group in Prism (and create the group if it doesn't already exist)
+        prismGroupsFilename = os.path.join(os.path.dirname(dstDir), "instgroups.json")
+        if os.path.exists(prismGroupsFilename):
+            with open(prismGroupsFilename, "r+") as file:
+                obj = json.loads(file.read())
         
-            if PRISM_INSTANCE_BACKUPS_GROUP in obj["groups"]:
-                obj["groups"][PRISM_INSTANCE_BACKUPS_GROUP]["instances"].append(os.path.basename(dstDir))
-            else:
-                obj["groups"][PRISM_INSTANCE_BACKUPS_GROUP] = {"hidden": True, "instances": [os.path.basename(dstDir)]}
+                if PRISM_INSTANCE_BACKUPS_GROUP in obj["groups"]:
+                    obj["groups"][PRISM_INSTANCE_BACKUPS_GROUP]["instances"].append(os.path.basename(dstDir))
+                else:
+                    obj["groups"][PRISM_INSTANCE_BACKUPS_GROUP] = {"hidden": True, "instances": [os.path.basename(dstDir)]}
 
-            file.seek(0)
-            file.write(json.dumps(obj, indent = 4))
-            file.truncate()
-    else:
-        with open(prismGroupsFilename, "w") as file:
-            obj = json.loads("{\"formatVersion\": \"1\",\"groups\": {}}")
-            obj["groups"][PRISM_INSTANCE_BACKUPS_GROUP] = {"hidden": True, "instances": [os.path.basename(dstDir)]}
-            file.write(json.dumps(obj, indent = 4))
+                file.seek(0)
+                file.write(json.dumps(obj, indent = 4))
+                file.truncate()
+        else:
+            with open(prismGroupsFilename, "w") as file:
+                obj = json.loads("{\"formatVersion\": \"1\",\"groups\": {}}")
+                obj["groups"][PRISM_INSTANCE_BACKUPS_GROUP] = {"hidden": True, "instances": [os.path.basename(dstDir)]}
+                file.write(json.dumps(obj, indent = 4))
 
     return dstDir
 
