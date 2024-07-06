@@ -166,7 +166,7 @@ def readConfig():
 
     global DOWNLOAD_LIST_URL
     if "downloadListURL" in values:
-        DOWNLOAD_LIST_URL = values["downloadListURL"]
+        DOWNLOAD_LIST_URL = sanitizeUserStr(values["downloadListURL"], "https://downloads.gtnewhorizons.com/Multi_mc_downloads/?raw")
     else:
         DOWNLOAD_LIST_URL = "https://downloads.gtnewhorizons.com/Multi_mc_downloads/?raw"
 
@@ -573,18 +573,22 @@ def main():
         #Add first-time setup here if instanceDir is empty
         zipDir = input("Location of downloaded zip file: ")
         os.chdir(os.path.join(instanceDir, ".."))
+        readConfig()
         print("Installation started", flush = True)
         if updateInstance(instanceDir, zipDir, [0,0,0]):   #oldVersion is set to nothing, not ideal but not much choice (maybe try to grab it from version.txt?)
             print("Installation finished")
         else:
             print("Error with installation")
     elif sys.argv[1] == "download":
+        # Don't need to change directory here
+        readConfig()
         downloadFile(sys.argv[2])
     elif sys.argv[1] == "auto":
         instanceID = os.environ["INST_ID"]
         instanceDir = os.environ["INST_DIR"]
         
         os.chdir(os.path.join(instanceDir, ".."))
+        readConfig()
 
         currVersion = getInstanceVersion(instanceID)
 
@@ -643,6 +647,7 @@ def main():
         instanceDir = sys.argv[1]
         zipDir = sys.argv[2]
         os.chdir(os.path.join(instanceDir, ".."))
+        readConfig()
         print("Installation started", flush = True)
         if updateInstance(instanceDir, zipDir, [0,0,0]):   #oldVersion is set to nothing, not ideal but not much choice (maybe try to grab it from version.txt?)
             print("Installation finished")
